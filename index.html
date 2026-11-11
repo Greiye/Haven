@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>Haven</title>
+<meta name="description" content="Haven: a first-person walk through a procedurally generated medieval town, forest and pond, rendered live in your browser with Three.js.">
+<meta name="theme-color" content="#0d1114">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Haven">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hud" hidden>
+  <div id="cross"></div>
+  <div id="zone"><span id="zname"></span><small id="zsub"></small></div>
+  <div id="stats"></div>
+  <div id="clock"><label for="tod">Hour</label><input id="tod" type="range" min="0" max="0.97" step="0.001" value="0.79"><span id="todv">17:14</span></div>
+</div>
+<div id="touchui">
+  <div id="stick"><i id="knob"></i></div>
+  <button class="tbtn" id="bJump" aria-label="Jump">&#8593;</button>
+  <button class="tbtn" id="bRun" aria-label="Run">&#187;</button>
+  <button class="tbtn" id="bPlace" aria-label="Travel to next place">Go</button>
+  <button class="tbtn" id="bFull" aria-label="Fullscreen">&#9974;</button>
+</div>
+<div id="card">
+  <div class="cardin">
+    <div class="eyebrow">A real-time walk &middot; WebGL2 &middot; Three.js</div>
+    <h1>HAVEN</h1>
+    <p class="sub">A walled market town in a quiet valley: oak and pine forest to the west, meadows to the east, and a small mirror pond with a dock. Townsfolk walk the roads between them. Everything is generated in your browser, with no downloaded models or textures.</p>
+    <div class="keys keysrow">
+      <span><b>WASD</b>walk</span><span><b>Shift</b>run</span><span><b>Space</b>jump</span>
+      <span><b>Mouse</b>look</span><span><b>1&ndash;5</b>travel to a place</span><span><b>T / G</b>move the sun</span>
+      <span><b>M</b>sound on/off</span><span><b>Esc</b>pause</span>
+    </div>
+    <div class="row">
+      <label for="quality" class="eyebrow" style="color:var(--muted)">Quality</label>
+      <select id="quality">
+        <option value="low">Low &middot; phones</option>
+        <option value="medium">Medium &middot; tablets, laptops</option>
+        <option value="high" selected>High</option>
+        <option value="ultra">Ultra &middot; desktop GPU</option>
+      </select>
+      <button class="go" id="go" disabled>BUILDING WORLD</button>
+      <button id="install" hidden>INSTALL APP</button>
+    </div>
+    <div id="bar"><i></i></div>
+    <div id="status">Starting&hellip;</div>
+    <details>
+      <summary>How it is made</summary>
+      <p>Terrain: a 1024&sup2; fBm + ridged-noise heightfield in a mountain-ringed valley, chunked for culling and splatted in the shader (grass, dirt, rock by slope, pond bank, cobble, snow) with two-scale sampling against tiling. Grass: up to 700k GPU-instanced blades that wrap around the player, read height and density from textures, bend in the wind and part around your feet. Trees: alpha-tested leaf cards with crown-spherical normals and sharpened alpha edges. Pond: three.js planar-reflection water with depth-based colour, transparency and shoreline foam. Sky: Preetham sky with PMREM image-based lighting, procedural clouds, stars and a moon. People: flat black-to-transparent silhouettes (four outlines) that follow the road network as camera-facing billboards with a sheared walk cycle. Post: HDR, MSAA, ground-truth ambient occlusion, screen-space sun shafts, bloom, ACES tone mapping and grading; resolution adapts to keep the frame rate up. Technique references: <a href="https://tympanus.net/codrops/2025/02/04/how-to-make-the-fluffiest-grass-with-three-js/" target="_blank" rel="noopener">Codrops fluffy grass</a>, <a href="https://al-ro.github.io/projects/grass" target="_blank" rel="noopener">al-ro grass</a>, the <a href="https://discourse.threejs.org/c/showcase/7" target="_blank" rel="noopener">three.js showcase forum</a>.</p>
+    </details>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
