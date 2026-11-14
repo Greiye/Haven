@@ -1267,7 +1267,8 @@ const pad = { on: false, mx: 0, my: 0, run: false, jump: false, prev: [] };
 function padStick(x, y) { const l = Math.hypot(x, y); if (l < 0.18) return [0, 0]; const k = Math.min(1, (l - 0.18) / 0.82) / l; return [x * k, y * k]; }
 function pollPad(dt) {
   const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find((g) => g && g.connected);
-  pad.on = !!gp; if (!gp) { pad.mx = pad.my = 0; pad.run = pad.jump = false; pad.prev = []; return; }
+  pad.on = !!gp; const info = $('padstate'); if (info) info.textContent = gp ? `Gamepad detected: ${String(gp.id || "controller").slice(0, 48)}${gp.mapping === 'standard' ? '' : ' (non-standard layout, buttons may differ)'}` : 'No gamepad detected. Connect one and press any button.';
+  if (!gp) { pad.mx = pad.my = 0; pad.run = pad.jump = false; pad.prev = []; return; }
   const b = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed), hit = (i) => b(i) && !pad.prev[i];
   [pad.mx, pad.my] = padStick(gp.axes[0] || 0, gp.axes[1] || 0);
   const [rx, ry] = padStick(gp.axes[2] || 0, gp.axes[3] || 0), sens = 1300 * dt; // px-equivalent per second, with a response curve for fine aim
@@ -1394,7 +1395,7 @@ function updateHUD(dt, fps) {
   const [n, sub] = zoneOf(player.pos);
   if (n !== zoneName) { zoneName = n; $('zname').textContent = n; $('zsub').textContent = sub; $('zone').style.opacity = 1; zoneT = 4.5; }
   if (zoneT > 0) { zoneT -= dt; if (zoneT <= 0) $('zone').style.opacity = 0.0; }
-  $('stats').textContent = `${fps.toFixed(0)} fps · ${$('quality').value}${renderScale < 0.99 ? ' · ' + Math.round(renderScale * 100) + '%' : ''}`;
+  $('stats').textContent = `${pad.on ? '\u{1F3AE} ' : ''}${fps.toFixed(0)} fps · ${$('quality').value}${renderScale < 0.99 ? ' · ' + Math.round(renderScale * 100) + '%' : ''}`;
 }
 
 // ---------------------------------------------------------------- loop
@@ -1479,4 +1480,8 @@ window.__dbg = { groundAt, step: (n) => { for (let i = 0; i < n; i++) step(perfo
 let deferredInstall = null;
 addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; $('install').hidden = false; });
 $('install').addEventListener('click', async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch {} deferredInstall = null; $('install').hidden = true; });
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded && !started) { reloaded = true; location.reload(); } });
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
