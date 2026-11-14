@@ -1262,6 +1262,29 @@ document.addEventListener('mousemove', (e) => { if (!started) return; if (locked
 canvas.addEventListener('mousedown', (e) => { if (!locked) { dragging = true; lastX = e.clientX; lastY = e.clientY; } });
 addEventListener('mouseup', () => { dragging = false; });
 function look(dx, dy) { player.yaw -= dx * 0.0022; player.pitch = clamp(player.pitch - dy * 0.0022, -1.45, 1.45); }
+// gamepad (standard mapping): sticks move/look, A jump, B/LT/RT/L3 run, LB/RB travel, D-pad sun, Y sound, Start pause/resume
+const pad = { on: false, mx: 0, my: 0, run: false, jump: false, prev: [] };
+function padStick(x, y) { const l = Math.hypot(x, y); if (l < 0.18) return [0, 0]; const k = Math.min(1, (l - 0.18) / 0.82) / l; return [x * k, y * k]; }
+function pollPad(dt) {
+  const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find((g) => g && g.connected);
+  pad.on = !!gp; if (!gp) { pad.mx = pad.my = 0; pad.run = pad.jump = false; pad.prev = []; return; }
+  const b = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed), hit = (i) => b(i) && !pad.prev[i];
+  [pad.mx, pad.my] = padStick(gp.axes[0] || 0, gp.axes[1] || 0);
+  const [rx, ry] = padStick(gp.axes[2] || 0, gp.axes[3] || 0), sens = 1300 * dt; // px-equivalent per second, with a response curve for fine aim
+  if (started) look(Math.sign(rx) * Math.pow(Math.abs(rx), 1.7) * sens, Math.sign(ry) * Math.pow(Math.abs(ry), 1.7) * sens);
+  pad.jump = b(0); pad.run = b(1) || b(10) || (gp.buttons[6] ? gp.buttons[6].value > 0.4 : false) || (gp.buttons[7] ? gp.buttons[7].value > 0.4 : false);
+  if (!started) { if ((hit(0) || hit(9)) && !$('go').disabled) $('go').click(); }
+  else {
+    if (hit(9)) { started = false; $('card').hidden = false; $('go').textContent = 'RESUME'; }
+    if (hit(5)) teleport(placeIdx = (placeIdx + 1) % PLACES.length);
+    if (hit(4)) teleport(placeIdx = (placeIdx + PLACES.length - 1) % PLACES.length);
+    if (hit(3)) toggleAudio();
+    if (b(15)) { tod = clamp(tod + dt * 0.05, 0, 0.97); $('tod').value = tod; updateSun(); }
+    if (b(14)) { tod = clamp(tod - dt * 0.05, 0, 0.97); $('tod').value = tod; updateSun(); }
+  }
+  pad.prev = gp.buttons.map((x) => x.pressed);
+}
+
 // touch: floating stick on the left half, look on the right half, on-screen jump / run buttons
 const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 const touch = { id: null, sx: 0, sy: 0, mx: 0, my: 0, lid: null, lx: 0, ly: 0, run: false };
@@ -1295,14 +1318,14 @@ function surfaceAt(x, z) {
 function updatePlayer(dt) {
   let fx = 0, fz = 0;
   if (keys.KeyW || keys.ArrowUp) fz += 1; if (keys.KeyS || keys.ArrowDown) fz -= 1; if (keys.KeyA || keys.ArrowLeft) fx -= 1; if (keys.KeyD || keys.ArrowRight) fx += 1;
-  fx += touch.mx; fz -= touch.my;
-  const run = keys.ShiftLeft || keys.ShiftRight || touch.run, speed = (run ? 7.5 : 3.4) * (surfaceAt(player.pos.x, player.pos.z) === 'water' ? 0.55 : 1);
+  fx += touch.mx + pad.mx; fz -= touch.my + pad.my;
+  const run = keys.ShiftLeft || keys.ShiftRight || touch.run || pad.run, speed = (run ? 7.5 : 3.4) * (surfaceAt(player.pos.x, player.pos.z) === 'water' ? 0.55 : 1);
   const len = Math.hypot(fx, fz); if (len > 1) { fx /= len; fz /= len; }
   const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
   const wx = (-sy * fz + cy * fx) * speed, wz = (-cy * fz - sy * fx) * speed;
   const acc = player.onGround ? 12 : 2;
   player.vel.x += (wx - player.vel.x) * Math.min(1, acc * dt); player.vel.z += (wz - player.vel.z) * Math.min(1, acc * dt);
-  if (keys.Space && player.onGround) { player.vel.y = 4.6; player.onGround = false; }
+  if ((keys.Space || pad.jump) && player.onGround) { player.vel.y = 4.6; player.onGround = false; }
   player.vel.y -= 14 * dt;
   const nx = player.pos.x + player.vel.x * dt, nz = player.pos.z + player.vel.z * dt;
   const np = { x: nx, z: nz };
@@ -1391,6 +1414,7 @@ function step(now) {
   if (water) water.material.uniforms.time.value = t * 0.6;
   if (keys.KeyT) { tod = clamp(tod + dt * 0.05); $('tod').value = tod; updateSun(); }
   if (keys.KeyG) { tod = clamp(tod - dt * 0.05); $('tod').value = tod; updateSun(); }
+  pollPad(dt);
   if (started) updatePlayer(dt); else { const a = t * 0.03; camera.position.set(150 + Math.cos(a) * 30, groundAt(150, 0) + 14, Math.sin(a) * 30); camera.lookAt(0, 22, -20); }
   updateEnv();
   // shadow camera follows the player, snapped to texels
@@ -1449,7 +1473,7 @@ document.addEventListener('visibilitychange', () => { if (AC) { if (document.hid
     requestAnimationFrame(frame);
   } catch (err) { console.error(err); $('status').textContent = 'Could not start: ' + err.message + '. WebGL2 is required.'; window.__err = String(err.stack || err); }
 })();
-window.__dbg = { groundAt, step: (n) => { for (let i = 0; i < n; i++) step(performance.now()); }, teleport, player, camera, people: () => people, WG, setTod: (v) => { tod = v; $('tod').value = v; updateSun(); }, applyQuality };
+window.__dbg = { groundAt, step: (n) => { for (let i = 0; i < n; i++) step(performance.now()); }, teleport, player, camera, people: () => people, WG, pad, pollPad, setStarted: (v) => { started = v; }, setTod: (v) => { tod = v; $('tod').value = v; updateSun(); }, applyQuality };
 
 // ---------------------------------------------------------------- PWA: install prompt + offline cache
 let deferredInstall = null;

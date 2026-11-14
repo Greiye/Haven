@@ -20,15 +20,16 @@ A first-person walk through a procedurally generated medieval valley, rendered l
 - Adaptive resolution keeps the frame rate up on weaker devices; quality defaults to Low or Medium on phones
 
 ## Controls
-| | Desktop | Phone / tablet |
-|---|---|---|
-| Move | WASD / arrows | Drag on the left half (floating stick) |
-| Look | Mouse | Drag on the right half |
-| Run | Shift | » button |
-| Jump | Space | ↑ button |
-| Travel | 1–5 | Go button |
-| Sun | T / G or the Hour slider | Hour slider (desktop) |
-| Sound | M | |
+| | Desktop | Phone / tablet | Gamepad |
+|---|---|---|---|
+| Move | WASD / arrows | Drag on the left half (floating stick) | Left stick |
+| Look | Mouse | Drag on the right half | Right stick |
+| Run | Shift | » button | B, LT/RT or L3 |
+| Jump | Space | ↑ button | A |
+| Travel | 1–5 | Go button | LB / RB |
+| Sun | T / G or the Hour slider | | D-pad left / right |
+| Sound | M | | Y |
+| Pause / start | Esc | | Start (A on the title card) |
 
 ## Host it on GitHub Pages
 1. Push this repo to GitHub (it is already built: `app.js` is the bundled game).
@@ -53,4 +54,4 @@ Requires a WebGL2 browser. Three.js (MIT) is bundled into `app.js` via esbuild.
 ## Credits
 Rendering techniques follow public Three.js showcase work: [Codrops fluffy grass](https://tympanus.net/codrops/2025/02/04/how-to-make-the-fluffiest-grass-with-three-js/), [al-ro grass](https://al-ro.github.io/projects/grass), the [three.js showcase forum](https://discourse.threejs.org/c/showcase/7). All assets are original and generated.
 
-<!-- pages rebuild trigger -->
+
