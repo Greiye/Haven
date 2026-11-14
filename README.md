@@ -52,3 +52,5 @@ Requires a WebGL2 browser. Three.js (MIT) is bundled into `app.js` via esbuild.
 
 ## Credits
 Rendering techniques follow public Three.js showcase work: [Codrops fluffy grass](https://tympanus.net/codrops/2025/02/04/how-to-make-the-fluffiest-grass-with-three-js/), [al-ro grass](https://al-ro.github.io/projects/grass), the [three.js showcase forum](https://discourse.threejs.org/c/showcase/7). All assets are original and generated.
+
+<!-- pages rebuild trigger -->
