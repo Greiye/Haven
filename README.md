@@ -60,3 +60,8 @@ Rendering techniques follow public Three.js showcase work: [Codrops fluffy grass
 - Higher-res procedural materials on high/ultra (1024 px)
 - Wildflower meadows, butterflies, birds
 - Sun lens flare in the post pass (MSAA-safe)
+
+## v4 additions
+- Layered clouds (domain-warped cumulus + cirrus), silver-lined edges
+- Daytime hemisphere fill, stronger bloom, new grade (sharpen, split-tone, vibrance)
+- Brighter bark; fallen logs, stumps, mushrooms

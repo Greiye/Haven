@@ -204,7 +204,7 @@ function buildTextures() {
   }, 4);
   TEX.bark = makeMaps(256, (u, v) => {
     const r = Math.abs(tfbm(u * 1, v * 0.25, 8, 4)), n = tfbm(u, v, 16, 3);
-    const c = mul3(mix3([0.17, 0.13, 0.10], [0.36, 0.31, 0.26], sstep(0.0, 0.4, r)), 0.85 + 0.2 * n);
+    const c = mul3(mix3([0.28, 0.21, 0.15], [0.55, 0.46, 0.36], sstep(0.0, 0.4, r)), 0.85 + 0.2 * n);
     return [...c, r * 1.2];
   }, 5);
   // window: leaded diamonds, wood frame. map + emissive
@@ -670,6 +670,32 @@ function buildRocks() {
   geos.forEach((g, k) => chunked(g, mat, lists[k]));
 }
 
+// ---------------------------------------------------------------- ground detail: fallen logs, stumps, mushrooms
+function buildGroundDetail() {
+  const bark = new THREE.MeshStandardMaterial({ map: TEX.bark.map, normalMap: TEX.bark.normal, roughness: 0.95 });
+  const logG = new THREE.CylinderGeometry(0.3, 0.34, 4.2, 10).rotateZ(Math.PI / 2).translate(0, 0.28, 0);
+  const stumpG = new THREE.CylinderGeometry(0.45, 0.6, 0.55, 10).translate(0, 0.25, 0);
+  const col = (g, r, gg, b) => { const n = g.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) c.set([r, gg, b], i * 3); g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; };
+  const shroom = (cap) => mergeGeometries([
+    col(new THREE.CylinderGeometry(0.035, 0.05, 0.16, 6).translate(0, 0.08, 0), 0.9, 0.86, 0.75),
+    col(new THREE.SphereGeometry(0.11, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.7, 1).translate(0, 0.16, 0), ...cap)]);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55 });
+  const logs = [], stumps = [], red = [], brown = [];
+  for (let i = 0; i < 5200; i++) {
+    const x = (rng() * 2 - 1) * (HALF - 40), z = (rng() * 2 - 1) * (HALF - 40), h = heightAt(x, z);
+    if (h < 1.8 || h > 90 || Math.hypot(x, z) < 150 || pathMask(x, z) > 0.05 || slopeAt(x, z) > 0.25) continue;
+    if (Math.hypot(x - POND.x, z - POND.z) < 28) continue;
+    if (SPAWN_CLEAR.some(([cx, cz]) => Math.hypot(x - cx, z - cz) < 8)) continue;
+    const f = fbm(x * 0.006 + 40, z * 0.006, 4); if (f < -0.05) continue;
+    const r = rng();
+    if (r < 0.1) { logs.push({ x, z, m: mtx(x, h - 0.05, z, rng() * 6.28, 0.7 + rng() * 0.8, 0.15) }); addCollider(x, z, 0.7); }
+    else if (r < 0.2) { stumps.push({ x, z, m: mtx(x, h - 0.05, z, rng() * 6.28, 0.7 + rng() * 0.8) }); addCollider(x, z, 0.5); }
+    else for (let k = 0, n = 3 + (rng() * 5 | 0); k < n; k++) { const mx = x + (rng() - 0.5) * 1.4, mz = z + (rng() - 0.5) * 1.4; (rng() < 0.5 ? red : brown).push({ x: mx, z: mz, m: mtx(mx, heightAt(mx, mz) - 0.01, mz, rng() * 6.28, 0.7 + rng() * 1.1) }); }
+  }
+  chunked(logG, bark, logs); chunked(stumpG, bark, stumps);
+  chunked(shroom([0.75, 0.12, 0.08]), mat, red, { cast: false }); chunked(shroom([0.5, 0.33, 0.2]), mat, brown, { cast: false });
+}
+
 // ---------------------------------------------------------------- town
 const G = { stone: [], plaster: [], roof: [], wood: [], window: [], cloth: [], dark: [], metal: [] };
 const obbs = [];
@@ -1068,7 +1094,7 @@ function buildSky() {
   sun.shadow.mapSize.set(Q.shadow, Q.shadow); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.06;
   scene.add(sun); scene.add(sun.target);
 
-  hemi = new THREE.HemisphereLight(0x6070a0, 0x101418, 0); scene.add(hemi);
+  hemi = new THREE.HemisphereLight(0x7fa0d8, 0x2a2418, 0); scene.add(hemi);
   // water
   water = new Water(new THREE.PlaneGeometry(90, 90), { textureWidth: Math.min(Q.refl, 512), textureHeight: Math.min(Q.refl, 512), waterNormals: TEX.water, sunDirection: new THREE.Vector3(), sunColor: 0xffffff, waterColor: 0x0a4a5c, distortionScale: 2.6, fog: true });
   water.rotation.x = -Math.PI / 2; water.position.set(POND.x, 0.0, POND.z); water.layers.set(1);
@@ -1085,15 +1111,26 @@ function buildSky() {
       ${GLSL_NOISE}
       float fb(vec2 p){ float s=0., a=0.5; for(int i=0;i<6;i++){ s+=a*vnoise(p); p=p*2.03+vec2(1.7,9.2); a*=0.5; } return s; }
       void main(){ vec3 d = normalize(vW); if (d.y < 0.0) discard;
-        vec2 p = d.xz/(d.y+0.12)*1.4 + vec2(uTime*0.004, uTime*0.0015);
-        float n = fb(p);
-        float cov = smoothstep(0.48, 0.78, n);
-        float n2 = fb(p + uSun.xz*0.08);
-        float lit = clamp(0.55 + (n - n2)*3.5, 0.0, 1.0);
-        float sunAmt = pow(max(dot(d, uSun), 0.0), 8.0);
-        vec3 col = mix(uAmb*0.9, uSunCol*1.1, lit) + uSunCol*sunAmt*(1.0-cov)*1.5;
-        float a = cov * smoothstep(0.0, 0.18, d.y) * 0.92;
-        gl_FragColor = vec4(col, a); }`,
+        float t = uTime;
+        vec2 p = d.xz/(d.y+0.10)*1.3 + vec2(t*0.004, t*0.0015);
+        vec2 w = vec2(fb(p*0.6+3.1), fb(p*0.6+8.7)) - 0.5;
+        float n = fb(p + w*0.9);
+        float cov = smoothstep(0.46, 0.80, n);
+        float n2 = fb(p + w*0.9 + uSun.xz*0.07);
+        float dens = clamp((n - 0.46)/0.34, 0.0, 1.0);
+        float lit = clamp(0.62 + (n - n2)*4.0, 0.15, 1.0);
+        vec3 shadowCol = uAmb*0.75;
+        vec3 col = mix(shadowCol, uSunCol*1.15, lit);
+        col = mix(col, shadowCol*0.8, smoothstep(0.55, 1.0, dens)*0.35);
+        float mu = max(dot(d, uSun), 0.0);
+        col += uSunCol * (pow(mu, 6.0)*0.6 + pow(mu, 40.0)*1.5) * (1.0 - dens*0.6);
+        vec2 q = d.xz/(d.y+0.25)*vec2(0.6, 2.4) + vec2(t*0.003, 0.0);
+        float ci = smoothstep(0.5, 0.85, fb(q*1.8 + w)) * 0.35 * smoothstep(0.05, 0.4, d.y);
+        float a = cov * smoothstep(0.0, 0.14, d.y) * 0.94;
+        vec3 cc = uSunCol*0.9 + uAmb*0.4;
+        float A = a + ci*(1.0 - a);
+        col = (col*a + cc*ci*(1.0 - a)) / max(A, 1e-3);
+        gl_FragColor = vec4(col, A); }`,
     transparent: true, depthWrite: false, side: THREE.BackSide, fog: false }));
   clouds.renderOrder = -1; clouds.layers.set(1); scene.add(clouds);
   // stars and moon
@@ -1192,7 +1229,7 @@ function updateSun() {
   const day = sstep(-0.06, 0.12, sy);
   sun.color.copy(sc); sun.intensity = 3.4 * day + 0.0;
   if (day < 0.02) { sun.color.setRGB(0.5, 0.6, 0.9); sun.intensity = 0.5; }
-  hemi.intensity = (1 - sstep(-0.12, 0.05, sunDir.y)) * 1.4;
+  hemi.intensity = (1 - sstep(-0.12, 0.05, sunDir.y)) * 1.4 + sstep(-0.05, 0.3, sunDir.y) * 0.25;
   scene.environmentIntensity = lerp(0.12, 0.85, sstep(-0.1, 0.25, sy));
   const night = 1 - sstep(-0.08, 0.1, sy);
   const fogDay = new THREE.Color(0.50, 0.64, 0.82), fogSet = new THREE.Color(0.75, 0.55, 0.42), fogN = new THREE.Color(0.02, 0.03, 0.05);
@@ -1240,6 +1277,7 @@ const GODRAY_FRAG = (n) => `uniform sampler2D tDiffuse; uniform vec2 uSun; unifo
 function resizeComposer() {
   const pr = Math.min(devicePixelRatio, Q.pr) * renderScale; renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
   composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight);
+  if (gradePass) gradePass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
 }
 function buildComposer() {
   const pr = Math.min(devicePixelRatio, Q.pr) * renderScale; renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
@@ -1260,18 +1298,23 @@ function buildComposer() {
   godPass = null;
   if (Q.rays) { godPass = new ShaderPass({ uniforms: { tDiffuse: { value: null }, uSun: { value: new THREE.Vector2(0.5, 0.5) }, uInt: { value: 0 }, uAspect: { value: innerWidth / innerHeight } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }', fragmentShader: GODRAY_FRAG(Q.rays) }); composer.addPass(godPass); }
-  bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.22, 0.55, 0.92); composer.addPass(bloom);
+  bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.3, 0.6, 0.9); composer.addPass(bloom);
   composer.addPass(new OutputPass());
   if (!Q.msaa) composer.addPass(new SMAAPass(innerWidth * pr, innerHeight * pr));
-  gradePass = new ShaderPass({ uniforms: { tDiffuse: { value: null }, uTime: { value: 0 } }, vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-    fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; varying vec2 vUv;
+  gradePass = new ShaderPass({ uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uRes: { value: new THREE.Vector2(innerWidth * pr, innerHeight * pr) } }, vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform vec2 uRes; varying vec2 vUv;
       float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
       void main(){ vec2 c = vUv - 0.5; float r2 = dot(c,c); float ca = 0.004*r2;
         vec3 col = vec3(texture2D(tDiffuse, vUv + c*ca).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - c*ca).b);
-        float l = dot(col, vec3(0.2126,0.7152,0.0722)); col = mix(vec3(l), col, 1.1);
-        col = mix(col, col*col*(3.0-2.0*col), 0.22);
-        col *= mix(vec3(1.0), vec3(1.02,1.0,0.96), smoothstep(0.3,0.9,l));
-        col *= 1.0 - r2*0.6;
+        vec2 px = 1.0 / uRes;
+        vec3 bl = (texture2D(tDiffuse, vUv + vec2(px.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(px.x, 0.0)).rgb + texture2D(tDiffuse, vUv + vec2(0.0, px.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, px.y)).rgb) * 0.25;
+        col += clamp(col - bl, -0.08, 0.08) * 0.9;
+        float l = dot(col, vec3(0.2126,0.7152,0.0722));
+        float sat = max(col.r, max(col.g, col.b)) - min(col.r, min(col.g, col.b));
+        col = mix(vec3(l), col, 1.1 + 0.25 * (1.0 - sat));
+        col = mix(col, col*col*(3.0-2.0*col), 0.26);
+        col *= mix(vec3(0.95,1.0,1.06), vec3(1.05,1.0,0.93), smoothstep(0.15,0.8,l));
+        col *= 1.0 - r2*0.65;
         col += (hh(vUv*vec2(1920.,1080.) + fract(uTime)*100.0) - 0.5) * 0.014;
         gl_FragColor = vec4(col, 1.0); }` });
   composer.addPass(gradePass);
@@ -1542,7 +1585,7 @@ document.addEventListener('visibilitychange', () => { if (AC) { if (document.hid
     TS = Q.tex; await status('Painting materials…', 0.25); buildTextures();
     await status('Laying roads and shorelines…', 0.45); buildMaskBase();
     await status('Raising Haven…', 0.55); const poles = buildTown(); buildPond();
-    await status('Planting the Thornwood…', 0.65); const trees = buildFoliage(); buildRocks();
+    await status('Planting the Thornwood…', 0.65); const trees = buildFoliage(); buildRocks(); buildGroundDetail();
     finalizeMask();
     await status('Building terrain and water…', 0.8); buildTerrain(); buildTownMeshes(); buildBanners(poles); buildGrass(); buildSky(); buildPeople(); buildFauna();
     applyQuality($('quality').value); updateSun();
